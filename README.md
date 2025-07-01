@@ -80,3 +80,5 @@ When you browse the v2 API docs (login to BAM Web UI, in the top-right click the
 #### 4. Using the [bluecat terraform provider](https://registry.terraform.io/providers/bluecatlabs/bluecat/latest/docs)
 
 Ignore the message that says "API version 25.0.0 or above." This is just confusing terminology. Their "integrity API" project has a version number which is completely unrelated to the version numbers you see in your BAM product.
+
+Yes, you should expect a good experience using the bluecat terraform provider. It's stable and officially supported.
