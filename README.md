@@ -10,7 +10,7 @@ To use the `bluecat_bam_tools` module in your project, `pip install` the followi
 
 Please see `sandbox.py` for example usage, including a typical usage of the `keyring` module to securely store credentials.
 
-    https://github.com/Tufts-Technology-Services/bluecat-bam-tools.git@v0.1.0#egg=bluecat_bam_tools
+    git+https://github.com/Tufts-Technology-Services/bluecat-bam-tools.git@v0.1.0#egg=bluecat_bam_tools
 
 ## Developer Notes
 
