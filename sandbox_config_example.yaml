@@ -1,0 +1,8 @@
+# Example configuration file for Bluecat sandbox testing
+# Copy this to sandbox_config.yaml (which is excluded by .gitignore) and update with your settings
+
+hostname: "bluecathostname"
+username: "api_user"
+
+# verify_ssl default is `true`. Un-comment and set to `false` to disable SSL validation
+# verify_ssl: false
