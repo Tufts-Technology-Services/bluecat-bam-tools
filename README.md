@@ -6,13 +6,92 @@ This project is public open source, MIT licensed.
 
 ## Usage
 
-To use the `bluecat_bam_tools` module in your project, `pip install` the following line, or add it to your `requirements.txt`. Notice the tagged version `@v0.1.0` in the URL and modify as appropriate.
+To use the `bluecat_bam_tools` module in your project, `pip install` the following line, or add it to your `requirements.txt`. Notice the tagged version `@v0.1.1` in the URL and modify as appropriate.
 
 Please see `sandbox.py` for example usage, including a typical usage of the `keyring` module to securely store credentials.
 
-    git+https://github.com/Tufts-Technology-Services/bluecat-bam-tools.git@v0.1.0#egg=bluecat_bam_tools
+    git+https://github.com/Tufts-Technology-Services/bluecat-bam-tools.git@v0.1.1#egg=bluecat_bam_tools
+
+Then
+
+```python
+from bluecat_bam_tools.bluecat_client import BluecatClient
+
+hostname = "example.org"  # hostname of your BAM
+username = "exampleuser"
+password = "examplepassword"
+verify_ssl = true  # require valid SSL cert
+
+with BluecatClient(hostname, username, password, verify_ssl=verify_ssl) as client:
+    # Optionally, handle exceptions during login() for more friendly output.
+    # Exceptions include: ConnectionError, Timeout, HTTPError, RequestException
+    # But I'm not doing that for this simple example.
+    client.login()
+    cidr = '10.10.10.0/24'
+    
+    # Returns the dict describing the network
+    network = client.get_network_by_cidr(cidr)
+    
+    # Returns a list of dicts, each describing the IP address object
+    # Includes UNASSIGNED and STATIC addresses, if there are
+    # no resourceRecords (DNS entries) pointing at the IP address
+    addresses = client.get_unassigned_addresses_in_network_by_cidr(cidr)
+```
+
+Methods:
+* **`login()`**
+  Attempts to log in
+  Raises `ConnectionError`, `Timeout`, `HTTPError`,  `RequestException`
+  
+  ```python
+  # Example:
+  client.login()
+  ```
+* **`logout()`**
+  You should use a `with` block instead, to guarantee this will be called instead of you calling it.
+  
+  ```python
+  # Example:
+  client.logout()
+  ```
+* **`http_get(url: str)`**
+  Performs HTTP GET, automatically handles pagination for you.
+  `url` should be in the form `"/foobar"` excluding `"/api/v2"`. The URL base `https://{hostname}/api/v2` is prepended automatically for you.
+  
+  ```python
+  # Example:
+  configurations = client.http_get('/configurations')
+  ```
+* **`get_network_by_cidr(cidr: str)`**
+  Returns a `dict` describing the network
+  Raises `ValueError` if the network is not found
+  
+  ```python
+  # Example:
+  network = client.get_network_by_cidr('10.10.10.0/24')
+  ```
+* **`get_unassigned_addresses_in_network_by_cidr(cidr: str)`**
+  Returns a `list` of `dict`, each describing unassigned IP addresses within a specified network
+  This method retrieves all IP addresses in the specified network that are either:
+  
+  1. Explicitly marked as UNASSIGNED in BlueCat Address Manager
+  2. Marked as STATIC but have no associated resource records (DNS entries)
+  
+  The second case handles situations where users delete DNS records but neglect
+  to check the "Delete linked IP addresses if orphaned" option in the web UI
+  
+  ```python
+  # Example:
+  addresses = client.get_unassigned_addresses_in_network_by_cidr('10.10.10.0/24')
+  ```
 
 ## Developer Notes
+
+If you plan to do development on this project, such as editing or running `sandbox.py`, several packages are necessary to support the sandbox, which are not needed by any public users who just `pip install` our package. To set up the development environment:
+
+```bash
+pip install -r requirements-dev.txt
+```
 
 Join the developer community ([Bluecat Network VIP](https://bluecatnetworks.com/network-vip/)). When prompted what product you use, BAM is part of the "Integrity" line. Choose Integrity. I have had a fantastic experience with this community. It's a small community but each question I've asked got immediate helpful replies.
 
@@ -39,9 +118,11 @@ On the official [Bluecat Documentation](https://docs.bluecatnetworks.com) page, 
 
 The v2 API is extremely well organized and documented, but that didn't prevent me from getting confused. Join the bluecat [community forum](https://community.bluecatnetworks.com), and ask questions. My experience there has been excellent.
 
-#### 2. The [bluecat-libraries](https://pypi.org/project/bluecat-libraries/) pip module
+#### 2. The [bluecat-libraries](https://pypi.org/project/bluecat-libraries/) pip package
 
-There is nothing wrong with using this. It uses the v1 API but why would you care. Maybe someday the old API will become deprecated and this module along with it? Probably not anytime soon. In the bluecat community, it was not the recommended approach, but there are no objections to it either.
+This pip package interfaces both the v1 API and v2 API. They strongly discourage use of the v1 API. When you use this package to interact with the v2 API, you still need to craft your own URLs. The package does a good job of handling `login()` and `logout()` for you, but it does not handle pagination for you. Ultimately we did not find this package to be worthwhile for v2 API work; we wrote our own `login()`, `logout()`, and handle pagination.
+
+Documentation here: [BlueCat Library Address Manager REST v2 API client reference](https://docs.bluecatnetworks.com/r/BlueCat-Python-Library-Guide/BlueCat-Library-Address-Manager-REST-v2-API-client-reference/25.1.1)
 
 #### 3. Using the OpenAPI auto-generated SDK (for python)
 
