@@ -22,68 +22,134 @@ username = "exampleuser"
 password = "examplepassword"
 verify_ssl = true  # require valid SSL cert
 
-with BluecatClient(hostname, username, password, verify_ssl=verify_ssl) as client:
+with BluecatClient(hostname, username, password, verify_ssl=verify_ssl) as bam:
     # Optionally, handle exceptions during login() for more friendly output.
     # Exceptions include: ConnectionError, Timeout, HTTPError, RequestException
     # But I'm not doing that for this simple example.
-    client.login()
+    bam.login()
     cidr = '10.10.10.0/24'
     
     # Returns the dict describing the network
-    network = client.get_network_by_cidr(cidr)
+    network = bam.get_network_by_cidr(cidr)
     
     # Returns a list of dicts, each describing the IP address object
     # Includes UNASSIGNED and STATIC addresses, if there are
     # no resourceRecords (DNS entries) pointing at the IP address
-    addresses = client.get_unassigned_addresses_in_network_by_cidr(cidr)
+    addresses = bam.get_unassigned_addresses_in_network_by_cidr(cidr)
 ```
 
 Methods:
-* **`login()`**
-  Attempts to log in
-  Raises `ConnectionError`, `Timeout`, `HTTPError`,  `RequestException`
+* **`BluecatClient(hostname, username, password, verify_ssl=True)`**
+  Initialize the Bluecat client.
+
+  * Args:
+    * `hostname (str)`: The hostname of the Bluecat server
+    * `username (str)`: Username for authentication
+    * `password (str)`: Password for authentication
+    * `verify_ssl (optional bool, default True)`: Whether to verify HTTPS certificates
+
+  * Example Usage:
+
+    ```python
+    bam = BluecatClient("example.org", "exampleuser", "examplepassword")
+    ```
+
+* **`login(debug=False)`**
+  Attempts to create a session on the BAM server using credentials provided in the constructor.
+
+  * Args:
+    * `debug (bool, optional)`: When False (default), any errors will raise a simplified LoginError with a helpful message. This is recommended for most usage because common errors (e.g. wrong password, server not reachable, etc) will be easily understood by the user. When True, raises the original exception with full stack trace for debugging purposes; useful for troubleshooting, overkill for most usage.
+    
+  * Returns:
+    * `bool`: True if login was successful, False otherwise
+
+  * Raises:
+    * `bluecat_bam_tools.exceptions.LoginError`: When debug=False and login fails for any reason
+    * `requests.exceptions.ConnectionError`: When debug=True and unable to connect to the server
+    * `requests.exceptions.Timeout`: When debug=True and request times out
+    * `requests.exceptions.HTTPError`: When debug=True and the server returns an HTTP error status code
+    * `requests.exceptions.RequestException`: When debug=True and some other request-related error occurs
+    * `json.JSONDecodeError`: When debug=True and the response contains invalid JSON
   
-  ```python
-  # Example:
-  client.login()
-  ```
+  * Example Usage:
+  
+    ```python
+    bam.login()
+    ```
+  
 * **`logout()`**
-  You should use a `with` block instead, to guarantee this will be called instead of you calling it.
+  This method is automatically called by the `__exit__()` method, so you only need to call `logout()` explicitly if you're **not** using a `with` block.
   
-  ```python
-  # Example:
-  client.logout()
-  ```
-* **`http_get(url: str)`**
-  Performs HTTP GET, automatically handles pagination for you.
-  `url` should be in the form `"/foobar"` excluding `"/api/v2"`. The URL base `https://{hostname}/api/v2` is prepended automatically for you.
+  * Raises:
+    * `requests.exceptions.HTTPError`: If the server returns an error response
   
-  ```python
-  # Example:
-  configurations = client.http_get('/configurations')
-  ```
-* **`get_network_by_cidr(cidr: str)`**
-  Returns a `dict` describing the network
-  Raises `ValueError` if the network is not found
+  * Example Usage:
   
-  ```python
-  # Example:
-  network = client.get_network_by_cidr('10.10.10.0/24')
-  ```
-* **`get_unassigned_addresses_in_network_by_cidr(cidr: str)`**
-  Returns a `list` of `dict`, each describing unassigned IP addresses within a specified network
-  This method retrieves all IP addresses in the specified network that are either:
+    ```python
+    bam.logout()
+    ```
+
+* **`http_get_all(url)`**
+  Returns data from the GET request. Handles pagination internally to return all data at once.
+
+  * Args:
+    * `url (str)`: The API endpoint path (e.g., '/networks' or 'networks'). Leading '/' is optional; it will be added automatically if needed.
+    
+  * Returns:
+    * `list`: A combined list of all data objects from all pages of results
   
-  1. Explicitly marked as UNASSIGNED in BlueCat Address Manager
-  2. Marked as STATIC but have no associated resource records (DNS entries)
+  * Raises:
+    * `RuntimeError`: If called before logging in
+    * `requests.exceptions.HTTPError`: If the server returns an error response
+    * `TypeError`: If the response data is not in the expected format
+    * `AssertionError`: If the response doesn't contain the expected structure
   
-  The second case handles situations where users delete DNS records but neglect
-  to check the "Delete linked IP addresses if orphaned" option in the web UI
+  * Example Usage:
   
-  ```python
-  # Example:
-  addresses = client.get_unassigned_addresses_in_network_by_cidr('10.10.10.0/24')
-  ```
+    ```python
+    configurations = bam.http_get_all('/configurations')
+    ```
+  
+* **`get_network_by_cidr(target_cidr)`**
+  Find a network by its CIDR notation.
+
+  * Args:
+    * `target_cidr (str)`: The CIDR notation to search for (e.g., '10.0.0.0/24')
+
+  * Returns:
+    * `dict`: The network object if found, None otherwise
+
+  * Raises:
+    * `ValueError`: If multiple networks match the CIDR (which should not happen)
+    * `RuntimeError`: If called before logging in
+
+  * Example Usage:
+
+    ```python
+    network = bam.get_network_by_cidr('10.10.10.0/24')
+    ```
+
+* **`get_unassigned_addresses_in_network_by_cidr(target_cidr)`**
+  Retrieves a list of unassigned IP addresses within a network identified by CIDR notation.
+
+  This method looks for both explicitly unassigned addresses (state='UNASSIGNED') and static addresses with no associated resource records, which are effectively unassigned. The latter case handles situations where users delete DNS records but neglect the checkbox "Delete linked IP addresses if orphaned" in the web UI.
+  
+  * Args:
+    * `target_cidr (str)`: The CIDR notation of the network to search within (e.g., '10.0.0.0/24')
+
+  * Returns:
+    * `list`: A list of address objects that are considered unassigned, each is a `dict` containing
+            details like 'id', 'properties', 'name', 'type', etc.
+  
+  * Raises:
+    * `ValueError`: If the network cannot be found or if multiple networks match the CIDR
+    * `RuntimeError`: If called before logging in
+  
+  * Example Usage:
+  
+    ```python
+    addresses = bam.get_unassigned_addresses_in_network_by_cidr('10.10.10.0/24')
+    ```
 
 ## Developer Notes
 
@@ -163,3 +229,19 @@ When you browse the v2 API docs (login to BAM Web UI, in the top-right click the
 Ignore the message that says "API version 25.0.0 or above." This is just confusing terminology. Their "integrity API" project has a version number which is completely unrelated to the version numbers you see in your BAM product.
 
 Yes, you should expect a good experience using the bluecat terraform provider. It's stable and officially supported.
+
+## To-Do
+
+- Find a free IP address for a CIDR subnet (done; could rename the method if  we decide upon some logical way to organize method names etc)
+
+- Assign IP address (create A and PTR records, internal/external/both)
+
+- Delete IP address (and associated records pointing at the IP), internal/external/both
+
+- The above imply need for creating/deleting/changing A records
+
+- Create / Delete "external" hosts. In the internal/external/both views
+
+- Create / Delete CNAMEs
+
+- (something to think about) search for unused records, like TXT and _acme-challenge records in the internal view, or no longer used.
