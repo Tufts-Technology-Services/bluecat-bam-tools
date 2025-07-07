@@ -11,7 +11,7 @@ class BluecatClient:
     query network information, and manage IP addresses and related resources.
     """
 
-    def __init__(self, hostname, username, password, verify_ssl=True):
+    def __init__(self, hostname: str, username: str, password: str, verify_ssl: bool = True):
         """
         Initialize the Bluecat client.
 
@@ -21,6 +21,15 @@ class BluecatClient:
             password (str): Password for authentication
             verify_ssl (bool): Whether to verify SSL certificates, defaults to True
         """
+        if not isinstance(hostname, str):
+            raise TypeError("hostname must be a string")
+        if not isinstance(username, str):
+            raise TypeError("username must be a string")
+        if not isinstance(password, str):
+            raise TypeError("password must be a string")
+        if not isinstance(verify_ssl, bool):
+            raise TypeError("verify_ssl must be a boolean")
+
         self.hostname = hostname
         self.username = username
         self.password = password
@@ -43,7 +52,7 @@ class BluecatClient:
         else:
             raise LoginError(message)
 
-    def login(self, debug=False):
+    def login(self, debug: bool = False) -> bool:
         """
         Attempts to create a session on the BAM server using credentials provided in the constructor.
 
@@ -54,7 +63,7 @@ class BluecatClient:
                 full stack trace for debugging purposes; useful for troubleshooting, overkill for most usage.
 
         Returns:
-            bool: True if login was successful, False otherwise
+            bool: True if login was successful
 
         Raises:
             bluecat_bam_tools.exceptions.LoginError: When debug=False and login fails for any reason
@@ -99,7 +108,6 @@ class BluecatClient:
             self.session.headers.update(self.headers)
 
             self.logged_in = True
-            return True
         except requests.exceptions.ConnectionError as e:
             self._handle_login_exception(e, "Unable to connect to the server", debug)
         except requests.exceptions.Timeout as e:
@@ -111,7 +119,9 @@ class BluecatClient:
         except json.JSONDecodeError as e:
             self._handle_login_exception(e, f"Error decoding JSON response: {e}", debug)
 
-    def logout(self):
+        return True
+
+    def logout(self) -> None:
         """
         This method is automatically called by the `__exit__()` method, so you only need to call `logout()` explicitly
         if you're **not** using a `with` block.
@@ -141,7 +151,7 @@ class BluecatClient:
             self.session.close()
             self.logged_in = False
 
-    def http_get_all(self, url):
+    def http_get_all(self, url: str) -> list[dict]:
         """
         Returns data from the GET request. Handles pagination internally to return all data at once.
 
@@ -150,7 +160,7 @@ class BluecatClient:
             added automatically if needed.
 
         Returns:
-            list: A combined list of all data objects from all pages of results
+            list[dict]: A combined list of all data objects from all pages of results
 
         Raises:
             RuntimeError: If called before logging in
@@ -176,7 +186,8 @@ class BluecatClient:
             # where response_json['count'] == len(response_json['data'])
             # When the response_json is paginated, it also includes '_links' in the response_json
 
-            assert ('count' in response_json), "'count' not found in response_json"
+            if not ('count' in response_json):
+                raise RuntimeError("'count' not found in response_json")
 
             # If response_json['count'] == 0, I don't know if 'data' will be present, Null, empty list, empty dict,
             # or what. But I don't care. I'm done.
@@ -204,14 +215,14 @@ class BluecatClient:
 
         return all_data
 
-    def get_network_by_cidr(self, target_cidr):
+    def get_network_by_cidr(self, target_cidr: str) -> dict | None:
         """Find a network by its CIDR notation.
 
         Args:
             target_cidr (str): The CIDR notation to search for (e.g., '10.0.0.0/24')
 
         Returns:
-            dict: The network object if found, None otherwise
+            dict | None: The network object if found, None otherwise
 
         Raises:
             ValueError: If multiple networks match the CIDR (which should not happen)
@@ -228,7 +239,7 @@ class BluecatClient:
 
         return response[0]
 
-    def get_unassigned_addresses_in_network_by_cidr(self, target_cidr):
+    def get_unassigned_addresses_in_network_by_cidr(self, target_cidr: str) -> list[dict]:
         """
         Retrieves a list of unassigned IP addresses within a network identified by CIDR notation.
 
@@ -241,8 +252,8 @@ class BluecatClient:
             target_cidr (str): The CIDR notation of the network to search within (e.g., '10.0.0.0/24')
 
         Returns:
-            list: A list of address objects that are considered unassigned, each is a `dict` containing
-                  details like 'id', 'properties', 'name', 'type', etc.
+            list[dict]: A list of address objects that are considered unassigned, each is a `dict` containing
+                      details like 'id', 'properties', 'name', 'type', etc.
 
         Raises:
             ValueError: If the network cannot be found or if multiple networks match the CIDR
@@ -268,3 +279,134 @@ class BluecatClient:
                     unassigned_addresses.append(address)
 
         return unassigned_addresses
+
+    def get_view(self, view_name: str) -> dict | None:
+        """
+        Retrieves a DNS view by its name from the BAM server.
+
+        Args:
+            view_name (str): The name of the view to retrieve. For example, "external", "internal", "registration",
+                or "quarantine".
+
+        Returns:
+            dict | None: If found, the view object containing details like 'id', 'name', etc. Otherwise, None.
+
+        Raises:
+            AssertionError: If server response is not as expected
+            RuntimeError: If called before logging in
+        """
+        view = self.http_get_all(f"/views?filter=name:eq('{view_name}')")
+        if not view:
+            return None
+        if len(view) != 1:
+            raise RuntimeError(f"Expected 1 view, got {len(view)}")
+        return view[0]
+
+    def find_parent_zones(self, fqdn: str) -> list[dict] | None:
+        """
+        Find the parent zone by progressively removing sections from the hostname.
+
+        Args:
+            fqdn (str): The fully qualified domain name (FQDN) to find the parent zone of
+
+        Returns:
+            list[dict] | None: The parent zone objects if found. Typically returns multiple zones, because each zone
+            in a different view is a different object.
+        """
+        name_parts = fqdn.split('.')
+
+        # Start with the full hostname and progressively remove sections from the beginning
+        while len(name_parts) > 1:  # Keep at least one part (TLD)
+            search_name = '.'.join(name_parts)
+            zones = self.http_get_all(f"zones?filter=absoluteName:eq('{search_name}')")
+
+            if zones:
+                return zones
+
+            # Remove the leftmost part and try again
+            name_parts.pop(0)
+
+        return None
+
+    def record_a_create( self, views: list[str], fqdn: str, ipaddresses: str | list[str], change_control_comment: str | None = None ):
+        """
+        Creates an A record with the specified FQDN and IP address(es) in the specified view(s).
+
+        Args:
+            views (list[str]): List of view names (e.g., ['internal', 'external']) to create the record in
+            fqdn (str): The fully qualified domain name for the record
+            ipaddresses (str | list[str]): One or more IP addresses to associate with the FQDN
+            change_control_comment (str | None, optional): Comment to include with the change for audit purposes
+
+        Returns:
+            bool: True if the record was successfully created
+
+        Raises:
+            TypeError: If any parameter is of incorrect type
+            ValueError: If views list is empty, ipaddresses list is empty, or parent zone cannot be found
+            requests.exceptions.HTTPError: If the server returns an error response
+            RuntimeError: If called before logging in
+        """
+        if not isinstance(views, list):
+            raise TypeError("views must be a list of strings")
+        if not views:
+            raise ValueError("views must contain at least one item")
+        if not all(isinstance(view, str) for view in views):
+            raise TypeError("all items in views must be strings")
+
+        if isinstance(ipaddresses, list):
+            if len(ipaddresses) == 0:
+                raise ValueError("ipaddresses must contain at least one item")
+            if not all(isinstance(ip, str) for ip in ipaddresses):
+                raise TypeError("all items in ipaddresses must be strings")
+        elif isinstance(ipaddresses, str):
+            # It's ok if the user only provided a single IP address. Internally we're going to use a list with 1 item.
+            ipaddresses = [ipaddresses]
+        else:
+            raise TypeError("ipaddresses must be a string, or list of strings")
+
+        if not isinstance(fqdn, str):
+            raise TypeError("fqdn must be a string")
+        
+        if change_control_comment is not None and not isinstance(change_control_comment, str):
+            raise TypeError("change_control_comment must be a string or None")
+
+        # Typically returns multiple zones, because each zone in a different view is a different object.
+        zones = self.find_parent_zones(fqdn)
+
+        if not isinstance(zones, list) or len(zones) == 0:
+            raise ValueError(f"Unable to find parent zone for {fqdn}")
+
+        # Filter zones to only include those where the view name is in the views list
+        zones = [zone for zone in zones if zone['view']['name'] in views]
+
+        if len(zones) == 0:
+            raise ValueError(f"Parent zone for {fqdn} does not exist in views {views}")
+
+        # Create data object for POST based on the provided ipaddresses
+        addresses = []
+        for ip in ipaddresses:
+            addresses.append({
+                "type": "IPv4Address",
+                "address": ip,
+                "state": "STATIC"
+            })
+
+        # Prepare the request data
+        data = {
+            "type": "HostRecord",
+            "name": fqdn,
+            "addresses": addresses
+        }
+
+        # Make a local copy of session headers and add change control comment if provided
+        headers = self.session.headers.copy()
+        if change_control_comment:
+            headers["x-bcn-change-control-comment"] = change_control_comment
+
+        for zone in zones:
+            url = f"{self.url_base}/zones/{zone['id']}/resourceRecords"
+            response = self.session.post(url, json=data, headers=headers, verify=self.verify_ssl)
+            response.raise_for_status()
+
+        return True

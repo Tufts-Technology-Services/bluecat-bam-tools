@@ -63,6 +63,19 @@ def parse_args():
     return parser.parse_args()
 
 
+def ipaddress_to_int(address_str: str):
+    ip_octets = [int(octet) for octet in address_str.split('.')]
+    ip_int = (ip_octets[0] << 24) + (ip_octets[1] << 16) + \
+             (ip_octets[2] << 8) + ip_octets[3]
+    return ip_int
+
+
+def is_near_ipaddress(first_ipaddress: str, second_ipaddress: str, threshold: int) -> bool:
+    first_int = ipaddress_to_int(first_ipaddress)
+    second_int = ipaddress_to_int(second_ipaddress)
+    return abs(first_int - second_int) <= threshold
+
+
 def main():
     args = parse_args()
 
@@ -88,9 +101,9 @@ def main():
     # Get password from keyring or prompt user
     password = get_password(hostname, username, args.save_password)
 
-    with BluecatClient(hostname, username, password, verify_ssl=verify_ssl) as client:
+    with BluecatClient(hostname, username, password, verify_ssl=verify_ssl) as bam:
         try:
-            client.login()
+            bam.login()
         except ConnectionError as e:
             print("Error: Unable to connect to the server.", file=sys.stderr)
             sys.exit(1)
@@ -108,17 +121,44 @@ def main():
             sys.exit(1)
 
         cidr = '10.10.10.0/24'
-        network = client.get_network_by_cidr(cidr)
+        cidr_first_ipaddress = cidr.split('/')[0]
+
+        # Demonstrate get_network_by_cidr()
+        network = bam.get_network_by_cidr(cidr)
         print("Found network:")
         print(f"{network}")
         print("")
 
-        addresses = client.get_unassigned_addresses_in_network_by_cidr(cidr)
-        if not addresses:
+        # Demonstrate get_unassigned_addresses_in_network_by_cidr()
+        unassigned_addresses = bam.get_unassigned_addresses_in_network_by_cidr(cidr)
+        if not unassigned_addresses:
             print("No unassigned addresses found")
         else:
-            print(f"Found {len(addresses)} unassigned addresses in network {cidr}. Here's the first one:")
-            print(f"{addresses[0]}")
+            print(f"Found {len(unassigned_addresses)} unassigned addresses in network {cidr}. Here's the first one:")
+            print(f"{unassigned_addresses[0]}")
+
+        # Demonstrate using some custom logic
+        found_free_ip_address = False
+        for unassigned_address in unassigned_addresses:
+            unassigned_address_str = unassigned_address['address']
+
+            # Enforce a policy that the first 30 IP addresses of any network will not be assigned; they are reserved
+            # for network equipment and such
+            if not is_near_ipaddress(unassigned_address_str, cidr_first_ipaddress, 30):
+                found_free_ip_address = True
+                break
+
+        if not found_free_ip_address:
+            raise RuntimeError("No unassigned addresses found in network")
+
+        # Now we've got an unassigned_address. Assign it.
+        # Demonstrate record_a_create()
+        fqdn = 'test.example.com'
+        zones = ['internal','external']
+        bam.record_a_create(zones, fqdn, unassigned_address_str)
+
+        # Demonstrate get_view()
+        view_internal = bam.get_view('internal')
 
     print("Done")
 

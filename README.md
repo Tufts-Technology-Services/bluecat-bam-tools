@@ -19,7 +19,7 @@ from bluecat_bam_tools.bluecat_client import BluecatClient
 
 hostname = "example.org"  # hostname of your BAM
 username = "exampleuser"
-password = "examplepassword"
+password = "examplepassword" # optionally, see sandbox.py for example of using keyring
 verify_ssl = true  # require valid SSL cert
 
 with BluecatClient(hostname, username, password, verify_ssl=verify_ssl) as bam:
@@ -40,7 +40,7 @@ with BluecatClient(hostname, username, password, verify_ssl=verify_ssl) as bam:
 
 Methods:
 * **`BluecatClient(hostname, username, password, verify_ssl=True)`**
-  Initialize the Bluecat client.
+  Constructor for the BluecatClient class.
 
   * Args:
     * `hostname (str)`: The hostname of the Bluecat server
@@ -70,21 +70,21 @@ Methods:
     * `requests.exceptions.HTTPError`: When debug=True and the server returns an HTTP error status code
     * `requests.exceptions.RequestException`: When debug=True and some other request-related error occurs
     * `json.JSONDecodeError`: When debug=True and the response contains invalid JSON
-  
+
   * Example Usage:
-  
+
     ```python
     bam.login()
     ```
-  
+
 * **`logout()`**
   This method is automatically called by the `__exit__()` method, so you only need to call `logout()` explicitly if you're **not** using a `with` block.
-  
+
   * Raises:
     * `requests.exceptions.HTTPError`: If the server returns an error response
-  
+
   * Example Usage:
-  
+
     ```python
     bam.logout()
     ```
@@ -97,19 +97,19 @@ Methods:
     
   * Returns:
     * `list`: A combined list of all data objects from all pages of results
-  
+
   * Raises:
     * `RuntimeError`: If called before logging in
     * `requests.exceptions.HTTPError`: If the server returns an error response
     * `TypeError`: If the response data is not in the expected format
     * `AssertionError`: If the response doesn't contain the expected structure
-  
+
   * Example Usage:
-  
+
     ```python
     configurations = bam.http_get_all('/configurations')
     ```
-  
+
 * **`get_network_by_cidr(target_cidr)`**
   Find a network by its CIDR notation.
 
@@ -133,22 +133,80 @@ Methods:
   Retrieves a list of unassigned IP addresses within a network identified by CIDR notation.
 
   This method looks for both explicitly unassigned addresses (state='UNASSIGNED') and static addresses with no associated resource records, which are effectively unassigned. The latter case handles situations where users delete DNS records but neglect the checkbox "Delete linked IP addresses if orphaned" in the web UI.
-  
+
   * Args:
     * `target_cidr (str)`: The CIDR notation of the network to search within (e.g., '10.0.0.0/24')
 
   * Returns:
-    * `list`: A list of address objects that are considered unassigned, each is a `dict` containing
+    * `list[dict]`: A list of address objects that are considered unassigned, each is a `dict` containing
             details like 'id', 'properties', 'name', 'type', etc.
-  
+
   * Raises:
     * `ValueError`: If the network cannot be found or if multiple networks match the CIDR
     * `RuntimeError`: If called before logging in
-  
+
   * Example Usage:
-  
+
     ```python
     addresses = bam.get_unassigned_addresses_in_network_by_cidr('10.10.10.0/24')
+    ```
+
+* **`get_view(view_name)`**
+  Retrieves a DNS view by its name from the BAM server.
+
+  * Args:
+    * `view_name (str)`: The name of the view to retrieve. For example, "external", "internal", "registration", or "quarantine".
+
+  * Returns:
+    * `dict | None`: If found, the view object containing details like 'id', 'name', etc. Otherwise, None.
+
+  * Raises:
+    * `AssertionError`: If server response is not as expected
+    * `RuntimeError`: If called before logging in
+
+  * Example Usage:
+
+    ```python
+    internal_view = bam.get_view('internal')
+    ```
+
+* **`find_parent_zones(fqdn)`**
+  Find the parent zone by progressively removing sections from the hostname.
+
+  * Args:
+    * `fqdn (str)`: The fully qualified domain name (FQDN) to find the parent zone of
+
+  * Returns:
+    * `list[dict] | None`: The parent zone objects if found. Typically returns multiple zones, because each zone in a different view is a different object.
+
+  * Example Usage:
+
+    ```python
+    zones = bam.find_parent_zones('host.example.com')
+    ```
+
+* **`record_a_create(views, fqdn, ipaddresses, change_control_comment=None)`**
+  Creates an A record with the specified FQDN and IP address(es) in the specified view(s).
+
+  * Args:
+    * `views (list[str])`: List of view names (e.g., ['internal', 'external']) to create the record in
+    * `fqdn (str)`: The fully qualified domain name for the record
+    * `ipaddresses (str | list[str])`: One or more IP addresses to associate with the FQDN
+    * `change_control_comment (str | None, optional)`: Comment to include with the change for audit purposes
+
+  * Returns:
+    * `bool`: True if the record was successfully created
+
+  * Raises:
+    * `TypeError`: If any parameter is of incorrect type
+    * `ValueError`: If views list is empty, ipaddresses list is empty, or parent zone cannot be found
+    * `requests.exceptions.HTTPError`: If the server returns an error response
+    * `RuntimeError`: If called before logging in
+
+  * Example Usage:
+
+    ```python
+    bam.record_a_create(['internal', 'external'], 'host.example.com', '192.168.1.100')
     ```
 
 ## Developer Notes
@@ -163,7 +221,7 @@ Join the developer community ([Bluecat Network VIP](https://bluecatnetworks.com/
 
 ## Comparison of bluecat automation options
 
-Four options were considered, for management of bluecat resources. Discussion was had ([this is a link to the discussion](https://community.bluecatnetworks.com/integrity-20/automating-bluecat-address-manager-2036?postid=12416#post12416)) in the bluecat [community forum](https://community.bluecatnetworks.com) and a bluecat employee chimed in. All members of the community recommended the DIY v2 API approach, so that is what's used in this project.
+Several options were considered, for management of bluecat resources. Discussion was had ([this is a link to the discussion](https://community.bluecatnetworks.com/integrity-20/automating-bluecat-address-manager-2036?postid=12416#post12416)) in the bluecat [community forum](https://community.bluecatnetworks.com) and a bluecat employee chimed in. All members of the community recommended the DIY v2 API approach, so that is what's used in this project.
 
 #### 1. The DIY v2 API
 
@@ -229,6 +287,19 @@ When you browse the v2 API docs (login to BAM Web UI, in the top-right click the
 Ignore the message that says "API version 25.0.0 or above." This is just confusing terminology. Their "integrity API" project has a version number which is completely unrelated to the version numbers you see in your BAM product.
 
 Yes, you should expect a good experience using the bluecat terraform provider. It's stable and officially supported.
+
+#### 5. The Bluecat Ansible Module
+
+I'm confused about this. BAM is an Integrity product, but this stuff all talks about Bluecat Gateway. Don't understand what the product lines are from Bluecat, and whether this applies to BAM customers.
+
+Links:
+
+* https://bluecatnetworks.com/integrations/ansible-module/
+* https://bluecatnetworks.com/blog/bluecat-ansible-integration/
+* https://www.youtube.com/watch?v=HJ09lY5it9I
+* I'm not sure which of these is better. They are both called "Ansible Module Administration Guide," but one of them is version 2.9 and the other 23.1
+  * https://docs.bluecatnetworks.com/r/en-US/Ansible-Module-Administration-Guide/2.9
+  * https://docs.bluecatnetworks.com/r/en-US/Ansible-Module-Administration-Guide/23.1
 
 ## To-Do
 
