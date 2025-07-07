@@ -383,6 +383,8 @@ class BluecatClient:
         if len(zones) == 0:
             raise ValueError(f"Parent zone for {fqdn} does not exist in views {views}")
 
+        relative_domain_name = fqdn.rstrip(f".{zones[0]['absoluteName']}")
+
         # Create data object for POST based on the provided ipaddresses
         addresses = []
         for ip in ipaddresses:
@@ -395,7 +397,7 @@ class BluecatClient:
         # Prepare the request data
         data = {
             "type": "HostRecord",
-            "name": fqdn,
+            "name": relative_domain_name,
             "addresses": addresses
         }
 
