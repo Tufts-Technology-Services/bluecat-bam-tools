@@ -35,7 +35,8 @@ class BluecatClient:
         self.password = password
         self.verify_ssl = verify_ssl
         self.api_token = None
-        self.url_base = f"https://{self.hostname}/api/v2"
+        self.url_base = f"https://{self.hostname}"
+        self.url_api_path = "/api/v2"
         self.headers = None
         self.logged_in = False
         self.session = None
@@ -74,7 +75,7 @@ class BluecatClient:
             json.JSONDecodeError: When debug=True and the response contains invalid JSON
         """
         try:
-            url = f"{self.url_base}/sessions"
+            url = f"{self.url_base}{self.url_api_path}/sessions"
             self.headers = {
                 "Content-Type": "application/hal+json",
                 "Accept": "application/hal+json"
@@ -133,7 +134,7 @@ class BluecatClient:
             requests.exceptions.HTTPError: If the server returns an error response
         """
         if self.session and self.logged_in:
-            url = f"{self.url_base}/sessions/current"
+            url = f"{self.url_base}{self.url_api_path}/sessions/current"
 
             local_headers = self.session.headers.copy()
             local_headers.update({
@@ -151,12 +152,43 @@ class BluecatClient:
             self.session.close()
             self.logged_in = False
 
-    def http_get_all(self, url: str) -> list[dict]:
+    def http_get_limited(self, endpoint_path: str) -> dict:
+        """
+        Makes a GET request with no pagination handling.
+
+        Args:
+            endpoint_path (str): The API endpoint path (e.g., '/networks' or 'networks'). Leading '/' is optional;
+            it will be added automatically if needed.
+
+        Returns:
+            dict: The raw JSON response from the API as a dictionary
+
+        Raises:
+            RuntimeError: If called before logging in
+            requests.exceptions.HTTPError: If the server returns an error response
+        """
+        if not self.logged_in:
+            raise RuntimeError("You must call login() before using this method.")
+
+        if not endpoint_path.startswith('/'):
+            endpoint_path = f"/{endpoint_path}"
+
+        if endpoint_path.startswith(self.url_api_path):
+            url = f"{self.url_base}{endpoint_path}"
+        else:
+            url = f"{self.url_base}{self.url_api_path}{endpoint_path}"
+
+        response = self.session.get(url, verify=self.verify_ssl)
+        response.raise_for_status()
+        response_json = response.json()
+        return response_json
+
+    def http_get_all(self, endpoint_path: str) -> list[dict]:
         """
         Returns data from the GET request. Handles pagination internally to return all data at once.
 
         Args:
-            url (str): The API endpoint path (e.g., '/networks' or 'networks'). Leading '/' is optional; it will be
+            endpoint_path (str): The API endpoint path (e.g., '/networks' or 'networks'). Leading '/' is optional; it will be
             added automatically if needed.
 
         Returns:
@@ -171,10 +203,13 @@ class BluecatClient:
         if not self.logged_in:
             raise RuntimeError("You must call login() before using this method.")
 
-        if url.startswith('/'):
-            url = f"{self.url_base}{url}"
+        if not endpoint_path.startswith('/'):
+            endpoint_path = f"/{endpoint_path}"
+
+        if endpoint_path.startswith(self.url_api_path):
+            url = f"{self.url_base}{endpoint_path}"
         else:
-            url = f"{self.url_base}/{url}"
+            url = f"{self.url_base}{self.url_api_path}{endpoint_path}"
 
         all_data = []
         while url:
@@ -228,8 +263,8 @@ class BluecatClient:
             ValueError: If multiple networks match the CIDR (which should not happen)
             RuntimeError: If called before logging in
         """
-        url = f"/networks?filter=range:eq('{target_cidr}')"
-        response = self.http_get_all(url)
+        endpoint_path = f"/networks?filter=range:eq('{target_cidr}')"
+        response = self.http_get_all(endpoint_path)
 
         if len(response) == 0:
             return None
@@ -263,8 +298,8 @@ class BluecatClient:
 
         network = self.get_network_by_cidr(target_cidr)
 
-        url = f"/networks/{network['id']}/addresses?fields=embed(resourceRecords)&filter=state:eq('UNASSIGNED') or state:eq('STATIC')"
-        addresses = self.http_get_all(url)
+        endpoint_path = f"/networks/{network['id']}/addresses?fields=embed(resourceRecords)&filter=state:eq('UNASSIGNED') or state:eq('STATIC')"
+        addresses = self.http_get_all(endpoint_path)
 
         for address in addresses:
             if address['state'] == 'UNASSIGNED':
@@ -407,8 +442,8 @@ class BluecatClient:
             headers["x-bcn-change-control-comment"] = change_control_comment
 
         for zone in zones:
-            url = f"{self.url_base}/zones/{zone['id']}/resourceRecords"
-            response = self.session.post(url, json=data, headers=headers, verify=self.verify_ssl)
+            endpoint_path = f"{self.url_base}{self.url_api_path}/zones/{zone['id']}/resourceRecords"
+            response = self.session.post(endpoint_path, json=data, headers=headers, verify=self.verify_ssl)
             response.raise_for_status()
 
         return True

@@ -110,6 +110,25 @@ Methods:
     configurations = bam.http_get_all('/configurations')
     ```
 
+  * **`http_get_limited(endpoint_path)`**
+  Makes a GET request with no pagination handling.
+
+  * Args:
+    * `endpoint_path (str)`: The API endpoint path (e.g., '/networks' or 'networks'). Leading '/' is optional; it will be added automatically if needed.
+
+  * Returns:
+    * `dict`: The raw JSON response from the API as a dictionary
+
+  * Raises:
+    * `RuntimeError`: If called before logging in
+    * `requests.exceptions.HTTPError`: If the server returns an error response
+
+  * Example Usage:
+
+    ```python
+    response = bam.http_get_limited('/configurations')
+    ```
+
 * **`get_network_by_cidr(target_cidr)`**
   Find a network by its CIDR notation.
 
