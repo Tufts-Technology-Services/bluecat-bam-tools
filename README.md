@@ -6,11 +6,11 @@ This project is public open source, MIT licensed.
 
 ## Usage
 
-To use the `bluecat_bam_tools` module in your project, `pip install` the following line, or add it to your `requirements.txt`. Notice the tagged version `@v0.1.1` in the URL and modify as appropriate.
+To use the `bluecat_bam_tools` module in your project, `pip install` the following line, or add it to your `requirements.txt`. Notice the tagged version `@v0.1.2` in the URL and modify as appropriate.
 
 Please see `sandbox.py` for example usage, including a typical usage of the `keyring` module to securely store credentials.
 
-    git+https://github.com/Tufts-Technology-Services/bluecat-bam-tools.git@v0.1.1#egg=bluecat_bam_tools
+    git+https://github.com/Tufts-Technology-Services/bluecat-bam-tools.git@v0.1.2#egg=bluecat_bam_tools
 
 Then
 
@@ -146,6 +146,25 @@ Methods:
 
     ```python
     network = bam.get_network_by_cidr('10.10.10.0/24')
+    ```
+
+  * **`get_cidr_contains_ip(ip_address)`**
+  Find a network that contains the specified IP address.
+
+  * Args:
+    * `ip_address (str)`: The IP address to search for (e.g., '10.0.0.15')
+
+  * Returns:
+    * `str`: The cidr range of the network (e.g., '10.0.0.0/24')
+
+  * Raises:
+    * `ValueError`: If there isn't exactly 1 network that contains the IP address
+    * `RuntimeError`: If called before logging in
+
+  * Example Usage:
+
+    ```python
+    cidr_range = bam.get_cidr_contains_ip('10.10.10.15')
     ```
 
 * **`get_unassigned_addresses_in_network_by_cidr(target_cidr)`**

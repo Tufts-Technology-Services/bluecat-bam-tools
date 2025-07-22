@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "bluecat-bam-tools"
-version = "0.1.1"
+version = "0.1.2"
 description = "Tools for working with BlueCat Address Manager"
 authors = [
     { name = "Your Name", email = "you@example.com" }

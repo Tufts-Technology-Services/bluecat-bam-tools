@@ -120,7 +120,8 @@ def main():
             print(f"Error decoding JSON response: {e}", file=sys.stderr)
             sys.exit(1)
 
-        cidr = '10.10.10.0/24'
+        ip_address = '10.10.10.10'
+        cidr = bam.get_cidr_contains_ip(ip_address)
         cidr_first_ipaddress = cidr.split('/')[0]
 
         # Demonstrate get_network_by_cidr()

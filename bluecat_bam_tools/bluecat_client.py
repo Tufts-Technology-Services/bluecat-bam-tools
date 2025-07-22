@@ -274,6 +274,27 @@ class BluecatClient:
 
         return response[0]
 
+    def get_cidr_contains_ip(self, ip_address: str) -> str | None:
+        """Find a network that contains the specified IP address.
+
+        Args:
+            ip_address (str): The IP address to search for (e.g., '10.0.0.15')
+
+        Returns:
+            str: The cidr range of the network (e.g., '10.0.0.0/24')
+
+        Raises:
+            ValueError: If there isn't exactly 1 network that contains the IP address
+            RuntimeError: If called before logging in
+        """
+        endpoint_path = f"/networks?filter=range:contains('{ip_address}')"
+        response = self.http_get_all(endpoint_path)
+
+        if len(response) != 1:
+            raise ValueError(f"Expected 1 network, got {len(response)}")
+
+        return response[0]['range']
+
     def get_unassigned_addresses_in_network_by_cidr(self, target_cidr: str) -> list[dict]:
         """
         Retrieves a list of unassigned IP addresses within a network identified by CIDR notation.
