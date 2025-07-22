@@ -4,6 +4,10 @@ In this document, Bluecat Address Manager is abbreviated BAM.
 
 This project is public open source, MIT licensed.
 
+## Requirements
+
+This project requires **Python 3.9 or greater**.
+
 ## Usage
 
 To use the `bluecat_bam_tools` module in your project, `pip install` the following line, or add it to your `requirements.txt`. Notice the tagged version `@v0.1.2` in the URL and modify as appropriate.
@@ -176,7 +180,7 @@ Methods:
     * `target_cidr (str)`: The CIDR notation of the network to search within (e.g., '10.0.0.0/24')
 
   * Returns:
-    * `list[dict]`: A list of address objects that are considered unassigned, each is a `dict` containing
+    * `List[Dict]`: A list of address objects that are considered unassigned, each is a `dict` containing
             details like 'id', 'properties', 'name', 'type', etc.
 
   * Raises:
@@ -196,7 +200,7 @@ Methods:
     * `view_name (str)`: The name of the view to retrieve. For example, "external", "internal", "registration", or "quarantine".
 
   * Returns:
-    * `dict | None`: If found, the view object containing details like 'id', 'name', etc. Otherwise, None.
+    * `Union[Dict, None]`: If found, the view object containing details like 'id', 'name', etc. Otherwise, None.
 
   * Raises:
     * `AssertionError`: If server response is not as expected
@@ -227,10 +231,10 @@ Methods:
   Creates an A record with the specified FQDN and IP address(es) in the specified view(s).
 
   * Args:
-    * `views (list[str])`: List of view names (e.g., ['internal', 'external']) to create the record in
+    * `views (List[str])`: List of view names (e.g., ['internal', 'external']) to create the record in
     * `fqdn (str)`: The fully qualified domain name for the record
-    * `ipaddresses (str | list[str])`: One or more IP addresses to associate with the FQDN
-    * `change_control_comment (str | None, optional)`: Comment to include with the change for audit purposes
+    * `ipaddresses (Union[str, List[str]])`: One or more IP addresses to associate with the FQDN
+    * `change_control_comment (Union[str, None], optional)`: Comment to include with the change for audit purposes
 
   * Returns:
     * `bool`: True if the record was successfully created

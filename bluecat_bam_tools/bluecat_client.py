@@ -2,6 +2,7 @@ import requests
 import json
 import base64
 from bluecat_bam_tools.exceptions import *
+from typing import Union, List, Dict
 
 class BluecatClient:
     """
@@ -183,7 +184,7 @@ class BluecatClient:
         response_json = response.json()
         return response_json
 
-    def http_get_all(self, endpoint_path: str) -> list[dict]:
+    def http_get_all(self, endpoint_path: str) -> List[Dict]:
         """
         Returns data from the GET request. Handles pagination internally to return all data at once.
 
@@ -192,7 +193,7 @@ class BluecatClient:
             added automatically if needed.
 
         Returns:
-            list[dict]: A combined list of all data objects from all pages of results
+            List[Dict]: A combined list of all data objects from all pages of results
 
         Raises:
             RuntimeError: If called before logging in
@@ -250,14 +251,14 @@ class BluecatClient:
 
         return all_data
 
-    def get_network_by_cidr(self, target_cidr: str) -> dict | None:
+    def get_network_by_cidr(self, target_cidr: str) -> Union[Dict, None]:
         """Find a network by its CIDR notation.
 
         Args:
             target_cidr (str): The CIDR notation to search for (e.g., '10.0.0.0/24')
 
         Returns:
-            dict | None: The network object if found, None otherwise
+            dict or None: The network object if found, None otherwise
 
         Raises:
             ValueError: If multiple networks match the CIDR (which should not happen)
@@ -274,14 +275,14 @@ class BluecatClient:
 
         return response[0]
 
-    def get_cidr_contains_ip(self, ip_address: str) -> str | None:
+    def get_cidr_contains_ip(self, ip_address: str) -> Union[str, None]:
         """Find a network that contains the specified IP address.
 
         Args:
             ip_address (str): The IP address to search for (e.g., '10.0.0.15')
 
         Returns:
-            str: The cidr range of the network (e.g., '10.0.0.0/24')
+            str or None: The cidr range of the network (e.g., '10.0.0.0/24')
 
         Raises:
             ValueError: If there isn't exactly 1 network that contains the IP address
@@ -295,7 +296,7 @@ class BluecatClient:
 
         return response[0]['range']
 
-    def get_unassigned_addresses_in_network_by_cidr(self, target_cidr: str) -> list[dict]:
+    def get_unassigned_addresses_in_network_by_cidr(self, target_cidr: str) -> List[dict]:
         """
         Retrieves a list of unassigned IP addresses within a network identified by CIDR notation.
 
@@ -336,7 +337,7 @@ class BluecatClient:
 
         return unassigned_addresses
 
-    def get_view(self, view_name: str) -> dict | None:
+    def get_view(self, view_name: str) -> Union[dict, None]:
         """
         Retrieves a DNS view by its name from the BAM server.
 
@@ -345,7 +346,7 @@ class BluecatClient:
                 or "quarantine".
 
         Returns:
-            dict | None: If found, the view object containing details like 'id', 'name', etc. Otherwise, None.
+            dict or None: If found, the view object containing details like 'id', 'name', etc. Otherwise, None.
 
         Raises:
             AssertionError: If server response is not as expected
@@ -358,7 +359,7 @@ class BluecatClient:
             raise RuntimeError(f"Expected 1 view, got {len(view)}")
         return view[0]
 
-    def find_parent_zones(self, fqdn: str) -> list[dict] | None:
+    def find_parent_zones(self, fqdn: str) -> Union[List[Dict], None]:
         """
         Find the parent zone by progressively removing sections from the hostname.
 
@@ -366,7 +367,7 @@ class BluecatClient:
             fqdn (str): The fully qualified domain name (FQDN) to find the parent zone of
 
         Returns:
-            list[dict] | None: The parent zone objects if found. Typically returns multiple zones, because each zone
+            Union[List[Dict], None]: The parent zone objects if found. Typically returns multiple zones, because each zone
             in a different view is a different object.
         """
         name_parts = fqdn.split('.')
@@ -384,14 +385,14 @@ class BluecatClient:
 
         return None
 
-    def record_a_create( self, views: list[str], fqdn: str, ipaddresses: str | list[str], change_control_comment: str | None = None ):
+    def record_a_create(self, views: List[str], fqdn: str, ipaddresses: Union[str, List[str]], change_control_comment: Union[str, None] = None):
         """
         Creates an A record with the specified FQDN and IP address(es) in the specified view(s).
 
         Args:
-            views (list[str]): List of view names (e.g., ['internal', 'external']) to create the record in
+            views (List[str]): List of view names (e.g., ['internal', 'external']) to create the record in
             fqdn (str): The fully qualified domain name for the record
-            ipaddresses (str | list[str]): One or more IP addresses to associate with the FQDN
+            ipaddresses (Union[str, List[str]]): One or more IP addresses to associate with the FQDN
             change_control_comment (str | None, optional): Comment to include with the change for audit purposes
 
         Returns:
